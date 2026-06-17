@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA Sin Límites</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #eee;
+            font-family: 'Segoe UI', sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .chat-container {
+            width: 95%;
+            max-width: 600px;
+            height: 90vh;
+            background: #111;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(255,0,0,0.2);
+        }
+        .chat-header {
+            background: #1a1a1a;
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+        .chat-header h2 { color: #ff4444; font-size: 1.5rem; }
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 15px;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        .user-message {
+            background: #ff4444;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+        .bot-message {
+            background: #2a2a2a;
+            color: #ddd;
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+        .chat-input {
+            display: flex;
+            padding: 15px;
+            background: #1a1a1a;
+            gap: 10px;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 25px;
+            border: 1px solid #333;
+            background: #222;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+        }
+        .chat-input button {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 12px 25px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .chat-input button:hover { background: #cc0000; }
+        .typing { color: #888; font-style: italic; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>🧠 Dolphin AI - Sin Restricciones</h2>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input">
+            <input type="text" id="userInput" placeholder="Escribe tu mensaje..." autocomplete="off">
+            <button onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURACIÓN: Reemplaza con tu API Key de Hugging Face
+        // Consíguela gratis en: https://huggingface.co/settings/tokens
+        // ============================================
+        const HF_API_KEY = 'TU_API_KEY_AQUI';  // ← PON AQUÍ TU TOKEN
+        
+        const API_URL = 'https://api-inference.huggingface.co/models/cognitivecomputations/dolphin-2.2.1-mistral-7b';
+        
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+
+        // Historial para mantener contexto
+        let conversationHistory = '';
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Mostrar mensaje del usuario
+            addMessage(message, 'user');
+            userInput.value = '';
+
+            // Mostrar indicador de "escribiendo..."
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'typing';
+            typingDiv.textContent = 'IA pensando...';
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                // Construir prompt con historial
+                conversationHistory += `User: ${message}\nAssistant:`;
+                const fullPrompt = conversationHistory;
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${HF_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        inputs: fullPrompt,
+                        parameters: {
+                            max_new_tokens: 500,
+                            temperature: 0.7,
+                            top_p: 0.9,
+                            return_full_text: false
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                
+                // Eliminar indicador de escribiendo
+                typingDiv.remove();
+
+                let botResponse = '';
+                if (Array.isArray(data) && data.length > 0) {
+                    botResponse = data[0].generated_text.trim();
+                    // Limpiar la respuesta si incluye "Assistant:" repetido
+                    botResponse = botResponse.replace(/^Assistant:\s*/i, '');
+                } else if (data.error) {
+                    botResponse = `Error: ${data.error}. Asegúrate de que tu API key sea válida.`;
+                } else {
+                    botResponse = 'Error inesperado. Intenta de nuevo.';
+                }
+
+                // Actualizar historial con la respuesta
+                conversationHistory += ` ${botResponse}\n`;
+                
+                // Limitar historial para no exceder tokens
+                if (conversationHistory.length > 2000) {
+                    conversationHistory = conversationHistory.substring(conversationHistory.length - 2000);
+                }
+
+                addMessage(botResponse, 'bot');
+            } catch (error) {
+                typingDiv.remove();
+                addMessage('Error de conexión. Verifica tu API key y tu internet.', 'bot');
+            }
+        }
+
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.textContent = text;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Enviar con Enter
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
