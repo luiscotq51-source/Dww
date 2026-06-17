@@ -104,28 +104,24 @@
 
     <script>
         // ============================================
-        // CONFIGURACIÓN: Reemplaza con tu API Key de Hugging Face
-        // Consíguela gratis en: https://huggingface.co/settings/tokens
+        // API Key configurada
         // ============================================
-        const HF_API_KEY = 'TU_API_KEY_AQUI';  // ← PON AQUÍ TU TOKEN
+        const HF_API_KEY = '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';
         
         const API_URL = 'https://api-inference.huggingface.co/models/cognitivecomputations/dolphin-2.2.1-mistral-7b';
         
         const chatMessages = document.getElementById('chatMessages');
         const userInput = document.getElementById('userInput');
 
-        // Historial para mantener contexto
         let conversationHistory = '';
 
         async function sendMessage() {
             const message = userInput.value.trim();
             if (!message) return;
 
-            // Mostrar mensaje del usuario
             addMessage(message, 'user');
             userInput.value = '';
 
-            // Mostrar indicador de "escribiendo..."
             const typingDiv = document.createElement('div');
             typingDiv.className = 'typing';
             typingDiv.textContent = 'IA pensando...';
@@ -133,7 +129,6 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
             try {
-                // Construir prompt con historial
                 conversationHistory += `User: ${message}\nAssistant:`;
                 const fullPrompt = conversationHistory;
 
@@ -155,14 +150,11 @@
                 });
 
                 const data = await response.json();
-                
-                // Eliminar indicador de escribiendo
                 typingDiv.remove();
 
                 let botResponse = '';
                 if (Array.isArray(data) && data.length > 0) {
                     botResponse = data[0].generated_text.trim();
-                    // Limpiar la respuesta si incluye "Assistant:" repetido
                     botResponse = botResponse.replace(/^Assistant:\s*/i, '');
                 } else if (data.error) {
                     botResponse = `Error: ${data.error}. Asegúrate de que tu API key sea válida.`;
@@ -170,10 +162,8 @@
                     botResponse = 'Error inesperado. Intenta de nuevo.';
                 }
 
-                // Actualizar historial con la respuesta
                 conversationHistory += ` ${botResponse}\n`;
                 
-                // Limitar historial para no exceder tokens
                 if (conversationHistory.length > 2000) {
                     conversationHistory = conversationHistory.substring(conversationHistory.length - 2000);
                 }
@@ -193,7 +183,6 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Enviar con Enter
         userInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') sendMessage();
         });
