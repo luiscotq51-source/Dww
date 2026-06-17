@@ -60,6 +60,14 @@
             align-self: flex-start;
             border-bottom-left-radius: 5px;
         }
+        .error-message {
+            background: #331111;
+            color: #ff6666;
+            align-self: center;
+            font-size: 0.9rem;
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
         .chat-input {
             display: flex;
             padding: 15px;
@@ -86,7 +94,7 @@
             cursor: pointer;
             transition: 0.2s;
         }
-        .chat-input button:hover { background: #cc0000; }
+        .chat-input button:disabled { background: #666; }
         .typing { color: #888; font-style: italic; padding: 10px; }
     </style>
 </head>
@@ -98,21 +106,20 @@
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-input">
             <input type="text" id="userInput" placeholder="Escribe tu mensaje..." autocomplete="off">
-            <button onclick="sendMessage()">Enviar</button>
+            <button id="sendBtn" onclick="sendMessage()">Enviar</button>
         </div>
     </div>
 
     <script>
         // ============================================
-        // API Key configurada
+        // CONFIGURACIÓN (API Key ya puesta)
         // ============================================
         const HF_API_KEY = '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';
-        
         const API_URL = 'https://api-inference.huggingface.co/models/cognitivecomputations/dolphin-2.2.1-mistral-7b';
         
         const chatMessages = document.getElementById('chatMessages');
         const userInput = document.getElementById('userInput');
-
+        const sendBtn = document.getElementById('sendBtn');
         let conversationHistory = '';
 
         async function sendMessage() {
@@ -121,6 +128,7 @@
 
             addMessage(message, 'user');
             userInput.value = '';
+            sendBtn.disabled = true;
 
             const typingDiv = document.createElement('div');
             typingDiv.className = 'typing';
@@ -130,7 +138,18 @@
 
             try {
                 conversationHistory += `User: ${message}\nAssistant:`;
-                const fullPrompt = conversationHistory;
+                const payload = {
+                    inputs: conversationHistory,
+                    parameters: {
+                        max_new_tokens: 500,
+                        temperature: 0.7,
+                        top_p: 0.9,
+                        return_full_text: false
+                    },
+                    options: {
+                        wait_for_model: true  // Espera a que el modelo despierte
+                    }
+                };
 
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -138,40 +157,39 @@
                         'Authorization': `Bearer ${HF_API_KEY}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        inputs: fullPrompt,
-                        parameters: {
-                            max_new_tokens: 500,
-                            temperature: 0.7,
-                            top_p: 0.9,
-                            return_full_text: false
-                        }
-                    })
+                    body: JSON.stringify(payload)
                 });
 
-                const data = await response.json();
                 typingDiv.remove();
 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                
                 let botResponse = '';
                 if (Array.isArray(data) && data.length > 0) {
                     botResponse = data[0].generated_text.trim();
                     botResponse = botResponse.replace(/^Assistant:\s*/i, '');
                 } else if (data.error) {
-                    botResponse = `Error: ${data.error}. Asegúrate de que tu API key sea válida.`;
+                    throw new Error(data.error);
                 } else {
-                    botResponse = 'Error inesperado. Intenta de nuevo.';
+                    throw new Error('Respuesta inesperada del modelo.');
                 }
 
                 conversationHistory += ` ${botResponse}\n`;
-                
                 if (conversationHistory.length > 2000) {
                     conversationHistory = conversationHistory.substring(conversationHistory.length - 2000);
                 }
 
                 addMessage(botResponse, 'bot');
             } catch (error) {
-                typingDiv.remove();
-                addMessage('Error de conexión. Verifica tu API key y tu internet.', 'bot');
+                typingDiv?.remove();
+                addMessage(`❌ ${error.message}`, 'error');
+            } finally {
+                sendBtn.disabled = false;
             }
         }
 
